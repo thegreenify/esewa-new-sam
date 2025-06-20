@@ -1,32 +1,69 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  A SAM application for a conceptual eSewa Allottee REST API.
+  A SAM application for an eSewa Allottee REST API that supports querying by ID and field selection.
 
-# Global settings for all functions
 Globals:
   Function:
-    Timeout: 10 # Timeout in seconds
-    MemorySize: 128 # Memory in MB
+    Timeout: 10
+    MemorySize: 128
     Runtime: python3.9
 
 Resources:
-  # Define the Lambda Function
+  AllotteeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: 'eSewa Allottee API'
+          description: 'An API to retrieve allottee details using an Employee ID or House ID (HID), with support for selecting specific fields in the response.'
+          version: '1.1.0'
+        paths:
+          /allottees/{id}: # Changed from {employeeId} to {id}
+            get:
+              summary: 'Get Allottee by Employee ID or House ID'
+              description: 'Fetches detailed information for a specific allottee using their unique employee ID or house ID.'
+              parameters:
+                - name: 'id' # Changed from employeeId
+                  in: 'path'
+                  description: 'The unique identifier for the lookup. Can be either an Employee ID (e.g., E12345) or a House ID (e.g., H456).'
+                  required: true
+                  schema:
+                    type: 'string'
+                - name: 'fields' # Added new query parameter for field selection
+                  in: 'query'
+                  description: 'A comma-separated list of fields to include in the response (e.g., fields=allotteeName,mobile,pan). If omitted, the full object is returned.'
+                  required: false
+                  schema:
+                    type: 'string'
+              responses:
+                '200':
+                  description: 'Successful response. Contains the full allottee object or a subset of fields if the "fields" parameter was used.'
+                  content:
+                    application/json:
+                      schema:
+                        type: 'object'
+                '400':
+                  description: 'Bad Request. The request was malformed, e.g., missing ID or invalid fields requested.'
+                '404':
+                  description: 'Allottee not found for the given ID.'
+
   GetAllotteeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: app/  # Path to the folder containing the function code
-      Handler: app.lambda_handler # The file and method to execute: app.py -> lambda_handler
+      CodeUri: app/
+      Handler: app.lambda_handler
       Events:
-        # This section defines the API Gateway trigger
-        GetAllotteeApi:
+        GetAllotteeApiEvent:
           Type: Api
           Properties:
-            Path: /allottees/{employeeId}
+            RestApiId: !Ref AllotteeApi
+            Path: /allottees/{id} # Changed from {employeeId}
             Method: get
 
 Outputs:
-  # This section provides the deployed API endpoint as an output
   AllotteeApiEndpoint:
     Description: "API Gateway endpoint URL for Prod stage for Allottee function"
-    Value: !Sub "https://://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/allottees/"
+    Value: !Sub "https://://${AllotteeApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/allottees/"
