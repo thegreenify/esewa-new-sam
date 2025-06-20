@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  A SAM application for a conceptual eSewa Allottee REST API with OpenAPI documentation.
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Runtime: python3.9
+
+Resources:
+  # Explicitly define the API Gateway resource to add documentation
+  AllotteeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      # Define the OpenAPI 3.0 specification inline
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: 'eSewa Allottee API'
+          description: 'An API to retrieve details of allottees from the CPWD eSewa portal.'
+          version: '1.0.0'
+        paths:
+          /allottees/{employeeId}:
+            get:
+              summary: 'Get Allottee by ID'
+              description: 'Fetches detailed information for a specific allottee using their unique employee ID.'
+              parameters:
+                - name: 'employeeId'
+                  in: 'path'
+                  description: 'The unique identifier for the employee.'
+                  required: true
+                  schema:
+                    type: 'string'
+              responses:
+                '200':
+                  description: 'Successful response with allottee details.'
+                  content:
+                    application/json:
+                      schema:
+                        type: 'object'
+                        properties:
+                          allotteeName:
+                            type: 'string'
+                            example: 'Rajesh Kumar'
+                          employeeId:
+                            type: 'string'
+                            example: 'E12345'
+                          aanId:
+                            type: 'string'
+                            example: 'AAN98765'
+                          mobile:
+                            type: 'string'
+                            example: '91-XXXXXX1234'
+                          email:
+                            type: 'string'
+                            format: 'email'
+                            example: 'rajesh.k@gov.in'
+                          pan:
+                            type: 'string'
+                            example: 'ABCDE1234F'
+                          aadhaar:
+                            type: 'string'
+                            example: 'XXXX-XXXX-1234'
+                          dateOfAllotment:
+                            type: 'string'
+                            format: 'date'
+                            example: '2023-10-26'
+                          employer:
+                            type: object
+                          quarter:
+                            type: object
+                '404':
+                  description: 'Allottee not found.'
+                  content:
+                    application/json:
+                      schema:
+                        type: 'object'
+                        properties:
+                          error:
+                            type: 'string'
+                            example: 'Allottee not found'
+                          employeeId:
+                            type: 'string'
+                            example: 'E99999'
+
+  # Define the Lambda Function and link it to the API above
+  GetAllotteeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: app/
+      Handler: app.lambda_handler
+      Events:
+        GetAllotteeApiEvent:
+          Type: Api
+          Properties:
+            # Link to the API resource defined above
+            RestApiId: !Ref AllotteeApi
+            Path: /allottees/{employeeId}
+            Method: get
+
+Outputs:
+  AllotteeApiEndpoint:
+    Description: "API Gateway endpoint URL for Prod stage for Allottee function"
+    Value: !Sub "https://://${AllotteeApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/allottees/"
